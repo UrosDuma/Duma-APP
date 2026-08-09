@@ -8,11 +8,11 @@
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#1e3a5c">
 
-  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png">
-  <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192.png">
-  <link rel="apple-touch-icon" sizes="512x512" href="./icons/icon-512.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./icon-512.png">
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -61,7 +61,7 @@
           referrerpolicy="no-referrer-when-downgrade"></iframe>
 
   <div id="splash">
-    <img src="./icons/icon-192.png" alt="Duma">
+    <img src="./icon-192.png" alt="Duma">
     <div class="title">Duma Enterprise</div>
     <div class="sub">Dedin Salaš &amp; Duma</div>
     <div class="note" id="note">Učitavanje…</div>
@@ -82,6 +82,8 @@
       setTimeout(function () { splash.classList.add('hide'); }, 350);
     });
 
+    // Ako se aplikacija ne ucita (npr. Google odbije prikaz u okviru),
+    // ponudi otvaranje direktno umesto beskonacnog cekanja.
     setTimeout(function () {
       if (!loaded) {
         note.textContent = 'Aplikacija se ne otvara u ovom prozoru. Dodirnite dugme ispod.';
@@ -89,6 +91,8 @@
       }
     }, 9000);
 
+    // Neophodno da bi Chrome stranicu prepoznao kao aplikaciju
+    // (a ne kao obicnu precicu sa adresnom trakom).
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('./sw.js').catch(function () {});

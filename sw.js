@@ -3,9 +3,9 @@ const SHELL = [
   "./",
   "./index.html",
   "./manifest.json",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/icon-maskable.png"
+  "./icon-192.png",
+  "./icon-512.png",
+  "./icon-maskable.png"
 ];
 
 self.addEventListener("install", (event) => {
@@ -24,10 +24,12 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Chrome zahteva fetch handler da bi stranicu smatrao aplikacijom.
+// Kesiramo samo nasu omotnicu; sve sa script.google.com uvek ide na mrezu (uvek sveza Duma aplikacija).
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin) return; // Google app - ne diramo
 
   event.respondWith(
     fetch(event.request)
