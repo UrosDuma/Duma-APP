@@ -21,62 +21,26 @@
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; background: #1e3a5c; overflow: hidden; }
-
-    #frame {
-      position: fixed; inset: 0;
-      width: 100%; height: 100%;
-      border: 0; display: block;
-      background: #1e3a5c;
-    }
-
-    #splash {
-      position: fixed; inset: 0; z-index: 10;
-      background: #1e3a5c;
+    html, body { height: 100%; background: #1e3a5c; }
+    body {
       display: flex; align-items: center; justify-content: center;
-      transition: opacity .3s ease;
+      flex-direction: column;
     }
-    #splash.hide { opacity: 0; pointer-events: none; }
-    #splash img { width: 56px; height: 56px; opacity: .85; }
-
-    .btn {
-      position: fixed; z-index: 11; left: 50%; bottom: 60px; transform: translateX(-50%);
-      display: none; padding: 11px 26px;
+    img { width: 84px; height: 84px; margin-bottom: 28px; }
+    a.btn {
+      display: inline-block; padding: 14px 34px;
       background: #cbb676; color: #1e3a5c; text-decoration: none;
-      border-radius: 3px; font-family: system-ui, sans-serif;
-      font-weight: 700; font-size: 14px;
+      border-radius: 4px; font-family: system-ui, sans-serif;
+      font-weight: 700; font-size: 16px;
     }
   </style>
 </head>
 <body>
 
-  <iframe id="frame"
-          src="https://script.google.com/macros/s/AKfycbzSCBRetWjV4y5DojPcXPDUk6oFlbt-DeG1coBoYdelYl--UsGTmyJnuX3zVlebjfl1_A/exec"
-          allow="clipboard-read; clipboard-write"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
-
-  <div id="splash">
-    <img src="./icon-192.png" alt="">
-  </div>
-
-  <a class="btn" id="direct"
-     href="https://script.google.com/macros/s/AKfycbzSCBRetWjV4y5DojPcXPDUk6oFlbt-DeG1coBoYdelYl--UsGTmyJnuX3zVlebjfl1_A/exec">Otvori aplikaciju</a>
+  <img src="./icon-192.png" alt="">
+  <a class="btn" href="https://script.google.com/macros/s/AKfycbzSCBRetWjV4y5DojPcXPDUk6oFlbt-DeG1coBoYdelYl--UsGTmyJnuX3zVlebjfl1_A/exec">Uđi u aplikaciju</a>
 
   <script>
-    var frame  = document.getElementById('frame');
-    var splash = document.getElementById('splash');
-    var direct = document.getElementById('direct');
-    var loaded = false;
-
-    frame.addEventListener('load', function () {
-      loaded = true;
-      setTimeout(function () { splash.classList.add('hide'); }, 250);
-    });
-
-    setTimeout(function () {
-      if (!loaded) direct.style.display = 'inline-block';
-    }, 6000);
-
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('./sw.js').catch(function () {});
