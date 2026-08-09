@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <title>Family Office Zavarko</title>
+
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#1B2333">
+
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./icons/icon-512.png">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Zavarko">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&family=Tangerine:wght@700&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #1B2333; overflow: hidden; }
+
+    #frame {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      border: 0; display: block;
+      background: #1B2333;
+    }
+
+    #splash {
+      position: fixed; inset: 0; z-index: 10;
+      background: #1B2333; color: #F4EFE3;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 24px;
+      transition: opacity .35s ease;
+    }
+    #splash.hide { opacity: 0; pointer-events: none; }
+    #splash img { width: 66px; height: 66px; border-radius: 50%; margin-bottom: 14px; }
+    .title { font-family: 'Tangerine', cursive; font-weight: 700; font-size: 46px; line-height: 1; }
+    .sub { font-family: 'Cormorant Garamond', serif; font-size: 10px; letter-spacing: .38em;
+           text-transform: uppercase; color: #C7A868; margin-top: 4px; }
+    .note { font-family: system-ui, sans-serif; font-size: 12.5px; color: #93A0B8; margin-top: 26px; line-height: 1.6; max-width: 280px; }
+    .btn {
+      display: inline-block; margin-top: 18px; padding: 11px 26px;
+      background: #A9863E; color: #1B2333; text-decoration: none;
+      border-radius: 3px; font-family: system-ui, sans-serif;
+      font-weight: 700; font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <iframe id="frame"
+          src="https://script.google.com/macros/s/AKfycbwd5U-nw3bd4eaJRqHGR0JKTLDf_NDeWrb0xIkgracnIU8OveKuswe88Cb3iVj4Jv1r/exec"
+          allow="clipboard-read; clipboard-write"
+          referrerpolicy="no-referrer-when-downgrade"></iframe>
+
+  <div id="splash">
+    <img src="./icons/icon-192.png" alt="Z">
+    <div class="title">Family Office Zavarko</div>
+    <div class="sub">Zavarko Family Corporation</div>
+    <div class="note" id="note">Učitavanje…</div>
+    <a class="btn" id="direct"
+       href="https://script.google.com/macros/s/AKfycbwd5U-nw3bd4eaJRqHGR0JKTLDf_NDeWrb0xIkgracnIU8OveKuswe88Cb3iVj4Jv1r/exec"
+       style="display:none">Otvori aplikaciju</a>
+  </div>
+
+  <script>
+    var frame   = document.getElementById('frame');
+    var splash  = document.getElementById('splash');
+    var note    = document.getElementById('note');
+    var direct  = document.getElementById('direct');
+    var loaded  = false;
+
+    frame.addEventListener('load', function () {
+      loaded = true;
+      setTimeout(function () { splash.classList.add('hide'); }, 350);
+    });
+
+    // Ako se aplikacija ne ucita (npr. Google odbije prikaz u okviru),
+    // ponudi otvaranje direktno umesto beskonacnog cekanja.
+    setTimeout(function () {
+      if (!loaded) {
+        note.textContent = 'Aplikacija se ne otvara u ovom prozoru. Dodirnite dugme ispod.';
+        direct.style.display = 'inline-block';
+      }
+    }, 9000);
+
+    // Neophodno da bi Chrome stranicu prepoznao kao aplikaciju
+    // (a ne kao obicnu precicu sa adresnom trakom).
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./sw.js').catch(function () {});
+      });
+    }
+  </script>
+
+</body>
+</html>
