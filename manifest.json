@@ -1,13 +1,13 @@
 {
-  "name": "Family Office Zavarko",
-  "short_name": "Zavarko",
-  "description": "Porodični operativni sistem — Dom i Office",
+  "name": "Duma Enterprise",
+  "short_name": "Duma",
+  "description": "Duma Enterprise — aplikacija za osoblje",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#1B2333",
-  "theme_color": "#1B2333",
+  "background_color": "#1e3a5c",
+  "theme_color": "#1e3a5c",
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -30,7 +30,5 @@
   ],
   "id": "/",
   "lang": "sr",
-  "categories": [
-    "productivity"
-  ]
+  "categories": ["business", "productivity"]
 }
