@@ -1,4 +1,4 @@
-const CACHE = "zavarko-shell-v1";
+const CACHE = "duma-shell-v1";
 const SHELL = [
   "./",
   "./index.html",
@@ -24,12 +24,10 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Chrome zahteva fetch handler da bi stranicu smatrao aplikacijom.
-// Kesiramo samo nasu omotnicu; sve sa script.google.com uvek ide na mrezu.
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  if (url.origin !== self.location.origin) return; // Google app - ne diramo
+  if (url.origin !== self.location.origin) return;
 
   event.respondWith(
     fetch(event.request)
