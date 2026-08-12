@@ -26,6 +26,7 @@
       min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 24px; text-align: center;
     }
+    #dumaWrap.hidden { display: none; }
     #dumaTitle { color: #fff; font-size: 20px; font-weight: 700; margin-bottom: 14px; }
     #dumaBtn {
       background: #2f9e5c; color: #fff; border: none; border-radius: 14px;
@@ -33,6 +34,7 @@
       box-shadow: 0 4px 14px rgba(0,0,0,.25); width: 100%; max-width: 340px;
     }
     #dumaBtn:active { background: #257a49; }
+    #dumaBtn:disabled { opacity: .6; }
     #dumaSkip {
       margin-top: 18px; color: #cfe0ee; font-size: 13.5px; text-decoration: underline; cursor: pointer;
     }
@@ -46,7 +48,7 @@
 </head>
 <body>
 
-  <div id="dumaWrap">
+  <div id="dumaWrap" class="hidden">
     <div id="dumaTitle">Duma Enterprise</div>
     <button id="dumaBtn" onclick="dumaKlikDozvoli()">🔔 Uključi obaveštenja i uđi u aplikaciju</button>
     <div id="dumaSkip" onclick="dumaPreskoci()">Nastavi bez obaveštenja (samo email)</div>
@@ -59,11 +61,10 @@
     var REDIRECT_URL = "https://script.google.com/macros/s/AKfycbzSCBRetWjV4y5DojPcXPDUk6oFlbt-DeG1coBoYdelYl--UsGTmyJnuX3zVlebjfl1_A/exec";
     // ===== KRAJ PODESAVANJA =====
 
-    // VAŽNO: browseri (Chrome pre svega) od nedavno ZAHTEVAJU da zahtev za dozvolu notifikacija
-    // bude pokrenut STVARNIM tapom/klikom korisnika - ako se pozove automatski čim se stranica
-    // učita (bez klika), browser to tiho ignoriše i NIKAD ne prikaže prozor za dozvolu, bez obzira
-    // na sva podešavanja telefona/browsera. Zato ovde postoji vidljivo dugme koje se MORA pritisnuti -
-    // taj klik je ono što browseru "dokazuje" da je korisnik stvarno to tražio.
+    // OVAJ EKRAN (dugme "Uključi obaveštenja") se pojavljuje SAMO PRVI PUT, dok korisnik ne donese
+    // odluku (dozvoli ili preskoči) - ta odluka se pamti u ovom browseru (localStorage) i ubuduće
+    // se preskace ceo ovaj korak, ide se DIREKTNO na prijavu.
+    var ODLUKA_KLJUC = 'dumaPushOdluka';
 
     function logStatus_(txt) {
       try { console.log('[DUMA]', txt); } catch (e) {}
@@ -76,64 +77,130 @@
       if (vecPreusmereno) return;
       vecPreusmereno = true;
       var url = REDIRECT_URL + (playerId ? ("?dumaPush=" + encodeURIComponent(playerId)) : "");
-      logStatus_(playerId ? 'Push povezan, prebacujem te u aplikaciju...' : 'Nastavljam bez push-a (samo email), prebacujem te u aplikaciju...');
       window.location.replace(url);
     }
 
+    function upamtiOdluku_(vrednost) {
+      try { localStorage.setItem(ODLUKA_KLJUC, vrednost); } catch (e) {}
+    }
+    function procitajOdluku_() {
+      try { return localStorage.getItem(ODLUKA_KLJUC) || ''; } catch (e) { return ''; }
+    }
+
+    function prikaziDugme_() {
+      var el = document.getElementById('dumaWrap');
+      if (el) el.classList.remove('hidden');
+    }
+
     function dumaPreskoci() {
-      logStatus_('Preskačem push, nastavljam samo sa mejlom...');
+      upamtiOdluku_('preskoceno');
       preusmeri_("");
     }
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(function (e) { logStatus_('Service worker greška: ' + e.message); });
+      navigator.serviceWorker.register('./sw.js').catch(function (e) {
+        logStatus_('Service worker greška: ' + (e && e.message || e));
+      });
+    }
+
+    // Pomocna funkcija - "trkanje" Promise-a protiv vremenskog ograničenja, tako da OneSignal.init()
+    // NIKAD ne moze da zaglavi stranicu zauvek ako OneSignal-ov server/SDK interno visi (ranije je
+    // ovo bio pravi bug: ako se init() nikad ne zavrsi ni uspehom ni greskom, dugme je beskonacno
+    // ponavljalo "Sačekaj..." bez ikakvog izlaza - sada posle 8 sekundi odustaje i nastavlja dalje).
+    function saVremenom_(promise, ms, poruka) {
+      return new Promise(function (resolve, reject) {
+        var gotovo = false;
+        var t = setTimeout(function () {
+          if (gotovo) return;
+          gotovo = true;
+          reject(new Error(poruka || ('Isteklo vreme (' + ms + 'ms)')));
+        }, ms);
+        promise.then(function (v) {
+          if (gotovo) return;
+          gotovo = true;
+          clearTimeout(t);
+          resolve(v);
+        }, function (e) {
+          if (gotovo) return;
+          gotovo = true;
+          clearTimeout(t);
+          reject(e);
+        });
+      });
+    }
+
+    var vecOdluceno = procitajOdluku_();
+    if (vecOdluceno === 'preskoceno') {
+      preusmeri_("");
+    }
+
+    var sigurnosniTajmer = null;
+    if (!vecOdluceno) {
+      sigurnosniTajmer = setTimeout(function () {
+        logStatus_('OneSignal se ne učitava na vreme - probaj dugme, ili nastavi bez push-a.');
+        prikaziDugme_();
+      }, 6000);
     }
 
     var oneSignalSpreman = false;
-    if (ONESIGNAL_APP_ID && ONESIGNAL_APP_ID.indexOf('STAVI_') !== 0) {
+    var oneSignalGreska = '';
+    if (!vecOdluceno && ONESIGNAL_APP_ID && ONESIGNAL_APP_ID.indexOf('STAVI_') !== 0) {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function (OneSignal) {
         try {
-          await OneSignal.init({
+          await saVremenom_(OneSignal.init({
             appId: ONESIGNAL_APP_ID,
             serviceWorkerPath: "sw.js",
             serviceWorkerParam: { scope: "/Duma-APP/" }
-          });
+          }), 8000, 'OneSignal.init() nije završio za 8 sekundi (moguć problem u OneSignal podešavanjima - proveri "Site URL" u OneSignal panelu, mora biti tačno https://urosduma.github.io/Duma-APP/).');
           oneSignalSpreman = true;
-          // Ako je dozvola VEĆ ranije data (npr. na povratnoj poseti), ne treba nikakav klik -
-          // odmah uzmi player ID i nastavi dalje bez čekanja na dugme.
+          if (sigurnosniTajmer) clearTimeout(sigurnosniTajmer);
           if (OneSignal.Notifications.permission) {
             var vecId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
-            if (vecId) { logStatus_('Dozvola već data, povezujem...'); preusmeri_(vecId); }
+            upamtiOdluku_('dozvoljeno');
+            preusmeri_(vecId);
+          } else {
+            prikaziDugme_();
           }
         } catch (eInit) {
-          logStatus_('OneSignal greška pri učitavanju: ' + (eInit && eInit.message || eInit));
+          if (sigurnosniTajmer) clearTimeout(sigurnosniTajmer);
+          oneSignalGreska = (eInit && eInit.message) || (eInit && eInit.toString && eInit.toString()) || JSON.stringify(eInit) || 'nepoznata greška';
+          logStatus_('OneSignal greška: ' + oneSignalGreska);
+          prikaziDugme_();
         }
       });
     }
 
-    // Klik na glavno dugme - OVO je user gesture koji browser zahteva da bi prikazao prozor.
+    // Klik na glavno dugme - OVO je user gesture koji browser zahteva da bi prikazao prozor za
+    // dozvolu. Ograničen broj pokušaja (najviše ~7 sekundi ukupno) - VIŠE NIKAD ne čeka unedogled.
+    var brojPokusaja = 0;
     async function dumaKlikDozvoli() {
       var btn = document.getElementById('dumaBtn');
       btn.disabled = true;
       btn.textContent = 'Sačekaj...';
       if (!oneSignalSpreman || typeof OneSignal === 'undefined') {
-        logStatus_('OneSignal još nije spreman, pokušavam ponovo za trenutak...');
+        brojPokusaja++;
+        if (brojPokusaja > 10) {
+          logStatus_('OneSignal se nije uspeo učitati (' + (oneSignalGreska || 'nepoznat razlog') + '). Nastavljam bez push-a - probaj kasnije ponovo, ili proveri OneSignal podešavanja.');
+          upamtiOdluku_('preskoceno');
+          preusmeri_("");
+          return;
+        }
+        logStatus_('OneSignal još nije spreman, pokušaj ' + brojPokusaja + '/10...');
         setTimeout(dumaKlikDozvoli, 700);
         btn.disabled = false;
+        btn.textContent = '🔔 Uključi obaveštenja i uđi u aplikaciju';
         return;
       }
       try {
         logStatus_('Tražim dozvolu za obaveštenja — pogledaj vrh ekrana...');
-        await OneSignal.Notifications.requestPermission();
+        await saVremenom_(OneSignal.Notifications.requestPermission(), 15000, 'Nije stigao odgovor na zahtev za dozvolu.');
         var playerId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
-        if (playerId) {
-          logStatus_('Obaveštenja uključena! Player ID: ' + playerId);
-        } else {
-          logStatus_('Dozvola nije data (odbijeno ili blokirano) - nastavljam samo sa mejlom.');
-        }
+        upamtiOdluku_(playerId ? 'dozvoljeno' : 'preskoceno');
+        logStatus_(playerId ? 'Obaveštenja uključena!' : 'Dozvola nije data - nastavljam samo sa mejlom.');
         preusmeri_(playerId);
       } catch (e) {
+        upamtiOdluku_('preskoceno');
         logStatus_('Greška: ' + (e && e.message || e) + ' - nastavljam samo sa mejlom.');
         preusmeri_("");
       }
