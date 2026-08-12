@@ -221,12 +221,32 @@
       try {
         logStatus_('Tražim dozvolu za obaveštenja — pogledaj vrh ekrana...');
         await saVremenom_(OneSignal.Notifications.requestPermission(), 15000, 'Nije stigao odgovor na zahtev za dozvolu.');
-        var playerId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
-        // Ovde JESTE u redu trajno upamtiti odluku: requestPermission() je stvarno završio (nije
-        // pukao/istekao), pa 'nema playerId' znači da je korisnik zaista pritisnuo Blokiraj u
-        // pravom browser prozoru - to je prava, trajna odluka koju browser i inače pamti.
-        upamtiOdluku_(playerId ? 'dozvoljeno' : 'preskoceno');
-        logStatus_(playerId ? 'Obaveštenja uključena!' : 'Dozvola nije data - nastavljam samo sa mejlom.');
+        // VAŽNO: čak i posle uspešnog "Dozvoli" klika, OneSignal-u treba par trenutaka DA NAPRAVI
+        // stvarnu pretplatu (Push Subscription) sa browserom i dobije njen ID - ako ga pitamo ODMAH,
+        // često je još prazan iako je korisnik STVARNO dozvolio (upravo ovo je bio uzrok lažne
+        // poruke "Dozvola nije data"). Zato ovde sačekamo do 5 sekundi, proveravajući svakih 300ms.
+        var playerId = "";
+        for (var pokusajId = 0; pokusajId < 16; pokusajId++) {
+          playerId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
+          if (playerId) break;
+          // I stvarna dozvola u browseru se ponekad tek stigne da primeni - ako je u međuvremenu
+          // postala 'denied', nema smisla dalje čekati, sigurno neće ni doći ID.
+          if (OneSignal.Notifications.permission === false) break;
+          await new Promise(function (r) { setTimeout(r, 300); });
+        }
+        // Trajno pamtimo odluku SAMO kada smo sigurni: ili imamo ID (dozvoljeno), ili je browser
+        // eksplicitno rekao 'denied' (korisnik je stvarno blokirao). Ako je i posle čekanja
+        // nejasno (permission === true ali ID i dalje prazan - redak slučaj kašnjenja mreže),
+        // NE pamtimo ništa trajno - sledeći put se dugme opet nudi, umesto da zauvek zaključa.
+        if (playerId) {
+          upamtiOdluku_('dozvoljeno');
+          logStatus_('Obaveštenja uključena!');
+        } else if (OneSignal.Notifications.permission === false) {
+          upamtiOdluku_('preskoceno');
+          logStatus_('Dozvola nije data - nastavljam samo sa mejlom.');
+        } else {
+          logStatus_('Dozvola je data, ali uređaj još nije stigao da se registruje - probaj ponovo za minut (dugme će se ponovo pojaviti).');
+        }
         preusmeri_(playerId);
       } catch (e) {
         // Ovde NE pamtimo trajnu odluku - requestPermission() nije stvarno završio (isteklo vreme
