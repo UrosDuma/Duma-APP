@@ -22,12 +22,19 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: #1e3a5c; }
+    #dumaStatus {
+      position: fixed; left: 0; right: 0; bottom: 24px; text-align: center;
+      color: #fff; font-family: Arial, sans-serif; font-size: 13px; opacity: .85;
+      padding: 0 16px;
+    }
   </style>
 
   <!-- OneSignal Web Push SDK -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
 <body>
+
+  <div id="dumaStatus">Podešavam obaveštenja, sačekaj par sekundi…</div>
 
   <script>
     // ===== PODESI OVDE =====
@@ -38,48 +45,80 @@
     var REDIRECT_URL = "https://script.google.com/macros/s/AKfycbzSCBRetWjV4y5DojPcXPDUk6oFlbt-DeG1coBoYdelYl--UsGTmyJnuX3zVlebjfl1_A/exec";
     // ===== KRAJ PODESAVANJA =====
 
+    // DIJAGNOSTIKA: svaki korak pise u konzolu (F12 -> Console) sa prefiksom [DUMA] - ovo je da bi
+    // se tacno videlo GDE se proces zaustavi/upuca, umesto da se nagadja. Ovo ne utice na rad
+    // aplikacije, samo ispisuje informacije.
+    function logStatus_(txt) {
+      try { console.log('[DUMA]', txt); } catch (e) {}
+      var el = document.getElementById('dumaStatus');
+      if (el) el.textContent = txt;
+    }
+
     function preusmeri(playerId) {
       var url = REDIRECT_URL + (playerId ? ("?dumaPush=" + encodeURIComponent(playerId)) : "");
+      logStatus_(playerId ? 'Push povezan, prebacujem te u aplikaciju...' : 'Nastavljam bez push-a (samo email), prebacujem te u aplikaciju...');
       window.location.replace(url);
     }
 
     // Registruje service worker (za instalabilnost) I OneSignal push, ali ne cekamo unedogled -
-    // ako nesto zapne (nema neta, blokiran skript i sl.) posle 4 sekunde ipak preusmeravamo dalje,
-    // samo bez push linka (email i dalje radi normalno).
+    // ako nesto zapne (nema neta, blokiran skript i sl.) posle 10 sekundi ipak preusmeravamo dalje,
+    // samo bez push linka (email i dalje radi normalno). 10 sek (ne 4) da OneSignal-u ostavi dovoljno
+    // vremena za prvu registraciju service workera i pitanje za dozvolu - to ume da potraje.
     var vecPreusmereno = false;
     function preusmeriJednomSaTimeoutom(playerId) {
       if (vecPreusmereno) return;
       vecPreusmereno = true;
       preusmeri(playerId);
     }
-    setTimeout(function () { preusmeriJednomSaTimeoutom(""); }, 4000);
+    setTimeout(function () {
+      logStatus_('Isteklo vreme čekanja (10s) - nastavljam bez push-a.');
+      preusmeriJednomSaTimeoutom("");
+    }, 10000);
+
+    logStatus_('Učitavam...');
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(function () {});
+      navigator.serviceWorker.register('./sw.js')
+        .then(function (reg) { logStatus_('Service worker registrovan.'); })
+        .catch(function (e) { logStatus_('Service worker GREŠKA: ' + e.message); });
+    } else {
+      logStatus_('Ovaj browser ne podržava service worker (push neće raditi na njemu).');
     }
 
     if (ONESIGNAL_APP_ID && ONESIGNAL_APP_ID.indexOf('STAVI_') !== 0) {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
+      logStatus_('Pokrećem OneSignal...');
       OneSignalDeferred.push(async function (OneSignal) {
         try {
+          logStatus_('OneSignal SDK učitan, inicijalizujem...');
           await OneSignal.init({
             appId: ONESIGNAL_APP_ID,
             serviceWorkerPath: "sw.js",
             serviceWorkerParam: { scope: "/Duma-APP/" }
           });
+          logStatus_('OneSignal inicijalizovan. Proveravam dozvolu za obaveštenja...');
           try {
             if (!OneSignal.Notifications.permission) {
+              logStatus_('Tražim dozvolu za obaveštenja (trebalo bi da iskoči prozor)...');
               await OneSignal.Notifications.requestPermission();
+              logStatus_('Odgovor na dozvolu primljen.');
+            } else {
+              logStatus_('Dozvola je već ranije data.');
             }
-          } catch (ePerm) { /* korisnik je odbio ili je vec pitano - nastavljamo bez push-a */ }
+          } catch (ePerm) {
+            logStatus_('Dozvola NIJE data (odbijena ili blokirana): ' + (ePerm && ePerm.message || ePerm));
+          }
           var playerId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
+          logStatus_(playerId ? ('Player ID dobijen: ' + playerId) : 'Player ID NIJE dobijen (push neće raditi na ovom uređaju, ali email hoće).');
           preusmeriJednomSaTimeoutom(playerId);
         } catch (eInit) {
+          logStatus_('GREŠKA pri OneSignal inicijalizaciji: ' + (eInit && eInit.message || eInit));
           preusmeriJednomSaTimeoutom("");
         }
       });
     } else {
       // App ID jos nije podesen ovde - preusmeri odmah bez cekanja na push.
+      logStatus_('App ID nije podešen - nastavljam bez push-a.');
       preusmeriJednomSaTimeoutom("");
     }
   </script>
