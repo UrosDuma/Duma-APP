@@ -43,6 +43,12 @@
     }
   </style>
 
+  <!-- Ubrzava povezivanje na OneSignal server PRE nego sto se sam SDK skripta uopste pozove -
+       na sporijem mobilnom netu ovo moze da uštedi i preko sekundu-dve. -->
+  <link rel="preconnect" href="https://cdn.onesignal.com" crossorigin>
+  <link rel="preconnect" href="https://onesignal.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.onesignal.com">
+
   <!-- OneSignal Web Push SDK -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
@@ -162,7 +168,10 @@
         try {
           await saVremenom_(OneSignal.init({
             appId: ONESIGNAL_APP_ID,
-            serviceWorkerPath: "sw.js",
+            // VAŽNO: mora biti PUNA putanja od korena SAJTA (urosduma.github.io/), ne od foldera
+            // aplikacije - jer je GitHub Pages projekat u podfolderu "Duma-APP", "sw.js" samo nije
+            // bilo dovoljno (OneSignal je tražio fajl na samom korenu domena i dobijao 404).
+            serviceWorkerPath: "Duma-APP/sw.js",
             serviceWorkerParam: { scope: "/Duma-APP/" }
           }), 8000, 'OneSignal.init() nije završio za 8 sekundi (moguć problem u OneSignal podešavanjima - proveri "Site URL" u OneSignal panelu, mora biti tačno https://urosduma.github.io/Duma-APP/).');
           oneSignalSpreman = true;
