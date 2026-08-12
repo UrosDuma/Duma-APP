@@ -158,11 +158,17 @@
         logStatus_('OneSignal se ne učitava na vreme - probaj dugme, ili nastavi bez push-a.');
         prikaziDugme_();
       }, 6000);
+    } else if (vecOdluceno === 'dozvoljeno') {
+      // Vraćeni korisnik koji je već dozvolio: ne prikazujemo dugme, čekamo da init prebaci u
+      // aplikaciju - ali ako se OneSignal ne javi za 10s, prebacujemo i bez push ID-a, da NIKAD
+      // ne ostane zaglavljen na praznom tamnom ekranu (ranije je ovo bila rupa: sačuvano
+      // 'dozvoljeno' -> nijedna grana se ne pokrene -> večno prazan ekran).
+      sigurnosniTajmer = setTimeout(function () { preusmeri_(""); }, 10000);
     }
 
     var oneSignalSpreman = false;
     var oneSignalGreska = '';
-    if (!vecOdluceno && ONESIGNAL_APP_ID && ONESIGNAL_APP_ID.indexOf('STAVI_') !== 0) {
+    if ((!vecOdluceno || vecOdluceno === 'dozvoljeno') && ONESIGNAL_APP_ID && ONESIGNAL_APP_ID.indexOf('STAVI_') !== 0) {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function (OneSignal) {
         try {
@@ -181,17 +187,34 @@
           oneSignalSpreman = true;
           if (sigurnosniTajmer) clearTimeout(sigurnosniTajmer);
           if (OneSignal.Notifications.permission) {
-            var vecId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
-            upamtiOdluku_('dozvoljeno');
-            preusmeri_(vecId);
+            // Dozvola je već data (npr. prošli put je kliknuto Dozvoli, ali registracija uređaja
+            // nije stigla da se završi pre prebacivanja) - sačekaj OVDE do 12s da OneSignal
+            // završi upis uređaja i dobije ID, pa tek onda prebaci SA ID-em.
+            logStatus_('Dozvola već postoji - povezujem uređaj...');
+            var vecId = "";
+            for (var ci = 0; ci < 30; ci++) {
+              vecId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
+              if (vecId) break;
+              await new Promise(function (r) { setTimeout(r, 400); });
+            }
+            if (vecId) {
+              upamtiOdluku_('dozvoljeno');
+              preusmeri_(vecId);
+            } else if (vecOdluceno === 'dozvoljeno') {
+              // Vraćeni korisnik - ne zadržavaj ga, uđi u aplikaciju; sledeći put opet probamo.
+              preusmeri_("");
+            } else {
+              prikaziDugme_();
+            }
           } else {
+            if (vecOdluceno === 'dozvoljeno') upamtiOdluku_(''); // dozvola u međuvremenu povučena - resetuj
             prikaziDugme_();
           }
         } catch (eInit) {
           if (sigurnosniTajmer) clearTimeout(sigurnosniTajmer);
           oneSignalGreska = (eInit && eInit.message) || (eInit && eInit.toString && eInit.toString()) || JSON.stringify(eInit) || 'nepoznata greška';
           logStatus_('OneSignal greška: ' + oneSignalGreska);
-          prikaziDugme_();
+          if (vecOdluceno === 'dozvoljeno') { preusmeri_(""); } else { prikaziDugme_(); }
         }
       });
     }
@@ -235,11 +258,11 @@
         // browsera - to je standardni API koji se ažurira TRENUTNO i sinhrono čim korisnik odgovori na
         // prozor za dozvolu, bez ikakvog kašnjenja.
         var playerId = "";
-        for (var pokusajId = 0; pokusajId < 16; pokusajId++) {
+        for (var pokusajId = 0; pokusajId < 30; pokusajId++) {
           playerId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
           if (playerId) break;
           if (typeof Notification !== 'undefined' && Notification.permission === 'denied') break;
-          await new Promise(function (r) { setTimeout(r, 300); });
+          await new Promise(function (r) { setTimeout(r, 400); });
         }
         var nativnaDozvola_ = (typeof Notification !== 'undefined' && Notification.permission) || 'default';
         if (playerId) {
