@@ -171,7 +171,11 @@
             // VAŽNO: mora biti PUNA putanja od korena SAJTA (urosduma.github.io/), ne od foldera
             // aplikacije - jer je GitHub Pages projekat u podfolderu "Duma-APP", "sw.js" samo nije
             // bilo dovoljno (OneSignal je tražio fajl na samom korenu domena i dobijao 404).
-            serviceWorkerPath: "Duma-APP/sw.js",
+            // Nazvano sw-v2.js (ne sw.js) namerno - GitHub-ov CDN je povremeno vracao zaglavljenu
+            // staru 404 gresku bas za putanju "sw.js" (verovatno kesirano na nekom edge serveru
+            // pre nego sto je fajl uopste postavljen). Sasvim novo ime = sasvim nova adresa, nikad
+            // ranije trazena, pa nema stare gresk e da se zaglavi na njoj.
+            serviceWorkerPath: "Duma-APP/sw-v2.js",
             serviceWorkerParam: { scope: "/Duma-APP/" }
           }), 8000, 'OneSignal.init() nije završio za 8 sekundi (moguć problem u OneSignal podešavanjima - proveri "Site URL" u OneSignal panelu, mora biti tačno https://urosduma.github.io/Duma-APP/).');
           oneSignalSpreman = true;
