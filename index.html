@@ -229,27 +229,30 @@
         // stvarnu pretplatu (Push Subscription) sa browserom i dobije njen ID - ako ga pitamo ODMAH,
         // često je još prazan iako je korisnik STVARNO dozvolio (upravo ovo je bio uzrok lažne
         // poruke "Dozvola nije data"). Zato ovde sačekamo do 5 sekundi, proveravajući svakih 300ms.
+        // KLJUČNA POPRAVKA: OneSignal.Notifications.permission (njihov wrapper) zna da kasni da se
+        // ažurira baš kao i PushSubscription.id - i to je bio pravi uzrok lažne poruke "Dozvola nije
+        // data" ODMAH posle klika na Dozvoli. Umesto njega, koristimo NATIVNI Notification.permission
+        // browsera - to je standardni API koji se ažurira TRENUTNO i sinhrono čim korisnik odgovori na
+        // prozor za dozvolu, bez ikakvog kašnjenja.
         var playerId = "";
         for (var pokusajId = 0; pokusajId < 16; pokusajId++) {
           playerId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
           if (playerId) break;
-          // I stvarna dozvola u browseru se ponekad tek stigne da primeni - ako je u međuvremenu
-          // postala 'denied', nema smisla dalje čekati, sigurno neće ni doći ID.
-          if (OneSignal.Notifications.permission === false) break;
+          if (typeof Notification !== 'undefined' && Notification.permission === 'denied') break;
           await new Promise(function (r) { setTimeout(r, 300); });
         }
-        // Trajno pamtimo odluku SAMO kada smo sigurni: ili imamo ID (dozvoljeno), ili je browser
-        // eksplicitno rekao 'denied' (korisnik je stvarno blokirao). Ako je i posle čekanja
-        // nejasno (permission === true ali ID i dalje prazan - redak slučaj kašnjenja mreže),
-        // NE pamtimo ništa trajno - sledeći put se dugme opet nudi, umesto da zauvek zaključa.
+        var nativnaDozvola_ = (typeof Notification !== 'undefined' && Notification.permission) || 'default';
         if (playerId) {
           upamtiOdluku_('dozvoljeno');
           logStatus_('Obaveštenja uključena!');
-        } else if (OneSignal.Notifications.permission === false) {
+        } else if (nativnaDozvola_ === 'denied') {
           upamtiOdluku_('preskoceno');
           logStatus_('Dozvola nije data - nastavljam samo sa mejlom.');
         } else {
-          logStatus_('Dozvola je data, ali uređaj još nije stigao da se registruje - probaj ponovo za minut (dugme će se ponovo pojaviti).');
+          // nativnaDozvola_ === 'granted' ali ID i dalje prazan (retko kašnjenje mreže), ILI
+          // 'default' (nejasno) - u oba slučaja NE pamtimo ništa trajno, sledeći put se dugme
+          // opet nudi umesto da zauvek zaključa korisnika van push-a.
+          logStatus_('Dozvola je data (' + nativnaDozvola_ + '), ali uređaj još nije stigao da se registruje - probaj ponovo za minut (dugme će se ponovo pojaviti).');
         }
         preusmeri_(playerId);
       } catch (e) {
