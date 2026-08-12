@@ -86,11 +86,23 @@
       if (el) el.textContent = txt;
     }
 
+    // Ako je stranica otvorena klikom na Brzi chat push notifikaciju, nosi ?otvoriChat=<idPoruke> -
+    // to se ovde pokupi sa PRAVE github.io adrese (ovde window.location.search RADI normalno, jer
+    // ovo NIJE unutar Apps Script sandbox iframe-a) i prosledi dalje ka aplikaciji.
+    var OTVORI_CHAT_ID = '';
+    try {
+      var __p = new URLSearchParams(window.location.search);
+      OTVORI_CHAT_ID = __p.get('otvoriChat') || '';
+    } catch (e) {}
+
     var vecPreusmereno = false;
     function preusmeri_(playerId) {
       if (vecPreusmereno) return;
       vecPreusmereno = true;
-      var url = REDIRECT_URL + (playerId ? ("?dumaPush=" + encodeURIComponent(playerId)) : "");
+      var qs = [];
+      if (playerId) qs.push("dumaPush=" + encodeURIComponent(playerId));
+      if (OTVORI_CHAT_ID) qs.push("otvoriChat=" + encodeURIComponent(OTVORI_CHAT_ID));
+      var url = REDIRECT_URL + (qs.length ? ("?" + qs.join("&")) : "");
       window.location.replace(url);
     }
 
