@@ -1,6 +1,9 @@
-// Minimalan service worker — NE kesira nista, samo postoji da bi Chrome
-// prepoznao stranicu kao instalabilnu aplikaciju. Uvek se sluzi sveza mreza.
-const CACHE = "duma-shell-v2";
+// OneSignal push (importScripts mora biti prva linija) + minimalan service worker koji ne kesira
+// nista, samo omogucava da Chrome/telefon prepozna stranicu kao instalabilnu aplikaciju i da
+// OneSignal moze da isporucuje push notifikacije. Uvek se sluzi sveza mreza (nema offline kes).
+importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");
+
+const CACHE = "duma-shell-v3";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
