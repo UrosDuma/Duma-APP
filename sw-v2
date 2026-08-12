@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <title>Duma Enterprise</title>
+
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#1e3a5c">
+
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./icon-512.png">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Duma">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #1e3a5c; font-family: Arial, sans-serif; }
+    #dumaWrap {
+      min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px; text-align: center;
+    }
+    #dumaWrap.hidden { display: none; }
+    #dumaTitle { color: #fff; font-size: 20px; font-weight: 700; margin-bottom: 14px; }
+    #dumaBtn {
+      background: #2f9e5c; color: #fff; border: none; border-radius: 14px;
+      padding: 18px 26px; font-size: 17px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,.25); width: 100%; max-width: 340px;
+    }
+    #dumaBtn:active { background: #257a49; }
+    #dumaBtn:disabled { opacity: .6; }
+    #dumaSkip {
+      margin-top: 18px; color: #cfe0ee; font-size: 13.5px; text-decoration: underline; cursor: pointer;
+    }
+    #dumaStatus {
+      margin-top: 22px; color: #fff; font-size: 12.5px; opacity: .8; max-width: 340px;
+    }
+  </style>
+
+  <!-- Ubrzava povezivanje na OneSignal server PRE nego sto se sam SDK skripta uopste pozove -
+       na sporijem mobilnom netu ovo moze da uštedi i preko sekundu-dve. -->
+  <link rel="preconnect" href="https://cdn.onesignal.com" crossorigin>
+  <link rel="preconnect" href="https://onesignal.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.onesignal.com">
+
+  <!-- OneSignal Web Push SDK -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+</head>
+<body>
+
+  <div id="dumaWrap" class="hidden">
+    <div id="dumaTitle">Duma Enterprise</div>
+    <button id="dumaBtn" onclick="dumaKlikDozvoli()">🔔 Uključi obaveštenja i uđi u aplikaciju</button>
+    <div id="dumaSkip" onclick="dumaPreskoci()">Nastavi bez obaveštenja (samo email)</div>
+    <div id="dumaStatus"></div>
+  </div>
+
+  <script>
+    // ===== PODESI OVDE =====
+    var ONESIGNAL_APP_ID = "386c4ae2-d7f3-4084-8f5c-23a049cff8bf";
+    var REDIRECT_URL = "https://script.google.com/macros/s/AKfycbzSCBRetWjV4y5DojPcXPDUk6oFlbt-DeG1coBoYdelYl--UsGTmyJnuX3zVlebjfl1_A/exec";
+    // ===== KRAJ PODESAVANJA =====
+
+    // OVAJ EKRAN (dugme "Uključi obaveštenja") se pojavljuje SAMO PRVI PUT, dok korisnik ne donese
+    // odluku (dozvoli ili preskoči) - ta odluka se pamti u ovom browseru (localStorage) i ubuduće
+    // se preskace ceo ovaj korak, ide se DIREKTNO na prijavu.
+    var ODLUKA_KLJUC = 'dumaPushOdluka';
+
+    function logStatus_(txt) {
+      try { console.log('[DUMA]', txt); } catch (e) {}
+      var el = document.getElementById('dumaStatus');
+      if (el) el.textContent = txt;
+    }
+
+    var vecPreusmereno = false;
+    function preusmeri_(playerId) {
+      if (vecPreusmereno) return;
+      vecPreusmereno = true;
+      var url = REDIRECT_URL + (playerId ? ("?dumaPush=" + encodeURIComponent(playerId)) : "");
+      window.location.replace(url);
+    }
+
+    function upamtiOdluku_(vrednost) {
+      try { localStorage.setItem(ODLUKA_KLJUC, vrednost); } catch (e) {}
+    }
+    function procitajOdluku_() {
+      try { return localStorage.getItem(ODLUKA_KLJUC) || ''; } catch (e) { return ''; }
+    }
+
+    function prikaziDugme_() {
+      var el = document.getElementById('dumaWrap');
+      if (el) el.classList.remove('hidden');
+    }
+
+    function dumaPreskoci() {
+      upamtiOdluku_('preskoceno');
+      preusmeri_("");
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(function (e) {
+        logStatus_('Service worker greška: ' + (e && e.message || e));
+      });
+    }
+
+    // Pomocna funkcija - "trkanje" Promise-a protiv vremenskog ograničenja, tako da OneSignal.init()
+    // NIKAD ne moze da zaglavi stranicu zauvek ako OneSignal-ov server/SDK interno visi (ranije je
+    // ovo bio pravi bug: ako se init() nikad ne zavrsi ni uspehom ni greskom, dugme je beskonacno
+    // ponavljalo "Sačekaj..." bez ikakvog izlaza - sada posle 8 sekundi odustaje i nastavlja dalje).
+    function saVremenom_(promise, ms, poruka) {
+      return new Promise(function (resolve, reject) {
+        var gotovo = false;
+        var t = setTimeout(function () {
+          if (gotovo) return;
+          gotovo = true;
+          reject(new Error(poruka || ('Isteklo vreme (' + ms + 'ms)')));
+        }, ms);
+        promise.then(function (v) {
+          if (gotovo) return;
+          gotovo = true;
+          clearTimeout(t);
+          resolve(v);
+        }, function (e) {
+          if (gotovo) return;
+          gotovo = true;
+          clearTimeout(t);
+          reject(e);
+        });
+      });
+    }
+
+    // KLJUČNO: ako je ovaj telefon RANIJE (pre ove popravke) zbog kvara upamtio 'preskoceno' iako
+    // korisnik nikad nije stvarno video/blokirao pravi prozor za dozvolu, to zauvek zaključava
+    // aplikaciju van push-a - baš to je bio uzrok "ništa mi ne stiže bez obzira šta radim". Ovde se
+    // to samo-ispravlja: 'preskoceno' se poštuje SAMO ako browser stvarno kaže da je blokirano
+    // (Notification.permission === 'denied'); u svakom drugom slučaju se stara odluka briše i
+    // korisniku se ponovo nudi dugme - bez ikakve ručne intervencije na telefonu.
+    var vecOdluceno = procitajOdluku_();
+    if (vecOdluceno === 'preskoceno') {
+      var stvarnaDozvolaOS_ = (typeof Notification !== 'undefined' && Notification.permission) || 'default';
+      if (stvarnaDozvolaOS_ === 'denied') {
+        preusmeri_("");
+      } else {
+        upamtiOdluku_('');
+        vecOdluceno = '';
+      }
+    }
+
+    var sigurnosniTajmer = null;
+    if (!vecOdluceno) {
+      sigurnosniTajmer = setTimeout(function () {
+        logStatus_('OneSignal se ne učitava na vreme - probaj dugme, ili nastavi bez push-a.');
+        prikaziDugme_();
+      }, 6000);
+    }
+
+    var oneSignalSpreman = false;
+    var oneSignalGreska = '';
+    if (!vecOdluceno && ONESIGNAL_APP_ID && ONESIGNAL_APP_ID.indexOf('STAVI_') !== 0) {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function (OneSignal) {
+        try {
+          await saVremenom_(OneSignal.init({
+            appId: ONESIGNAL_APP_ID,
+            // VAŽNO: mora biti PUNA putanja od korena SAJTA (urosduma.github.io/), ne od foldera
+            // aplikacije - jer je GitHub Pages projekat u podfolderu "Duma-APP", "sw.js" samo nije
+            // bilo dovoljno (OneSignal je tražio fajl na samom korenu domena i dobijao 404).
+            // Nazvano sw-v2.js (ne sw.js) namerno - GitHub-ov CDN je povremeno vracao zaglavljenu
+            // staru 404 gresku bas za putanju "sw.js" (verovatno kesirano na nekom edge serveru
+            // pre nego sto je fajl uopste postavljen). Sasvim novo ime = sasvim nova adresa, nikad
+            // ranije trazena, pa nema stare gresk e da se zaglavi na njoj.
+            serviceWorkerPath: "Duma-APP/sw-v2.js",
+            serviceWorkerParam: { scope: "/Duma-APP/" }
+          }), 8000, 'OneSignal.init() nije završio za 8 sekundi (moguć problem u OneSignal podešavanjima - proveri "Site URL" u OneSignal panelu, mora biti tačno https://urosduma.github.io/Duma-APP/).');
+          oneSignalSpreman = true;
+          if (sigurnosniTajmer) clearTimeout(sigurnosniTajmer);
+          if (OneSignal.Notifications.permission) {
+            var vecId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
+            upamtiOdluku_('dozvoljeno');
+            preusmeri_(vecId);
+          } else {
+            prikaziDugme_();
+          }
+        } catch (eInit) {
+          if (sigurnosniTajmer) clearTimeout(sigurnosniTajmer);
+          oneSignalGreska = (eInit && eInit.message) || (eInit && eInit.toString && eInit.toString()) || JSON.stringify(eInit) || 'nepoznata greška';
+          logStatus_('OneSignal greška: ' + oneSignalGreska);
+          prikaziDugme_();
+        }
+      });
+    }
+
+    // Klik na glavno dugme - OVO je user gesture koji browser zahteva da bi prikazao prozor za
+    // dozvolu. Ograničen broj pokušaja (najviše ~7 sekundi ukupno) - VIŠE NIKAD ne čeka unedogled.
+    var brojPokusaja = 0;
+    async function dumaKlikDozvoli() {
+      var btn = document.getElementById('dumaBtn');
+      btn.disabled = true;
+      btn.textContent = 'Sačekaj...';
+      if (!oneSignalSpreman || typeof OneSignal === 'undefined') {
+        brojPokusaja++;
+        if (brojPokusaja > 10) {
+          // VAŽNO: ovde se NAMERNO ne pamti trajna odluka "preskoceno" - ovo je TEHNIČKI kvar
+          // (OneSignal se nije učitao), ne stvarna odluka korisnika. Ako bismo ovde upamtili
+          // 'preskoceno', korisnik bi ostao trajno zaključan van push-a zauvek, čak i posle
+          // popravke servera - jer bi svaki sledeći put stranica odmah preskočila dugme (vidi
+          // proveru 'vecOdluceno' na vrhu fajla) bez ikad ponovo pokušala. Bez trajnog pamćenja,
+          // sledeći put kad korisnik otvori aplikaciju, dugme se ponovo nudi.
+          logStatus_('OneSignal se nije uspeo učitati (' + (oneSignalGreska || 'nepoznat razlog') + '). Nastavljam bez push-a ovog puta - probaj ponovo kasnije (dugme će se ponovo pojaviti).');
+          preusmeri_("");
+          return;
+        }
+        logStatus_('OneSignal još nije spreman, pokušaj ' + brojPokusaja + '/10...');
+        setTimeout(dumaKlikDozvoli, 700);
+        btn.disabled = false;
+        btn.textContent = '🔔 Uključi obaveštenja i uđi u aplikaciju';
+        return;
+      }
+      try {
+        logStatus_('Tražim dozvolu za obaveštenja — pogledaj vrh ekrana...');
+        await saVremenom_(OneSignal.Notifications.requestPermission(), 15000, 'Nije stigao odgovor na zahtev za dozvolu.');
+        // VAŽNO: čak i posle uspešnog "Dozvoli" klika, OneSignal-u treba par trenutaka DA NAPRAVI
+        // stvarnu pretplatu (Push Subscription) sa browserom i dobije njen ID - ako ga pitamo ODMAH,
+        // često je još prazan iako je korisnik STVARNO dozvolio (upravo ovo je bio uzrok lažne
+        // poruke "Dozvola nije data"). Zato ovde sačekamo do 5 sekundi, proveravajući svakih 300ms.
+        var playerId = "";
+        for (var pokusajId = 0; pokusajId < 16; pokusajId++) {
+          playerId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
+          if (playerId) break;
+          // I stvarna dozvola u browseru se ponekad tek stigne da primeni - ako je u međuvremenu
+          // postala 'denied', nema smisla dalje čekati, sigurno neće ni doći ID.
+          if (OneSignal.Notifications.permission === false) break;
+          await new Promise(function (r) { setTimeout(r, 300); });
+        }
+        // Trajno pamtimo odluku SAMO kada smo sigurni: ili imamo ID (dozvoljeno), ili je browser
+        // eksplicitno rekao 'denied' (korisnik je stvarno blokirao). Ako je i posle čekanja
+        // nejasno (permission === true ali ID i dalje prazan - redak slučaj kašnjenja mreže),
+        // NE pamtimo ništa trajno - sledeći put se dugme opet nudi, umesto da zauvek zaključa.
+        if (playerId) {
+          upamtiOdluku_('dozvoljeno');
+          logStatus_('Obaveštenja uključena!');
+        } else if (OneSignal.Notifications.permission === false) {
+          upamtiOdluku_('preskoceno');
+          logStatus_('Dozvola nije data - nastavljam samo sa mejlom.');
+        } else {
+          logStatus_('Dozvola je data, ali uređaj još nije stigao da se registruje - probaj ponovo za minut (dugme će se ponovo pojaviti).');
+        }
+        preusmeri_(playerId);
+      } catch (e) {
+        // Ovde NE pamtimo trajnu odluku - requestPermission() nije stvarno završio (isteklo vreme
+        // ili SDK greška), znači korisnik nije ni video pravi prozor za dozvolu. Ne sme se trajno
+        // zaključati van push-a zbog privremenog tehničkog kvara.
+        logStatus_('Greška: ' + (e && e.message || e) + ' - nastavljam samo sa mejlom ovog puta (probaj ponovo kasnije).');
+        preusmeri_("");
+      }
+    }
+  </script>
+
+</body>
+</html>
