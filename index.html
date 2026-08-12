@@ -58,6 +58,14 @@
     <div id="dumaTitle">Duma Enterprise</div>
     <button id="dumaBtn" onclick="dumaKlikDozvoli()">🔔 Uključi obaveštenja i uđi u aplikaciju</button>
     <div id="dumaSkip" onclick="dumaPreskoci()">Nastavi bez obaveštenja (samo email)</div>
+    <div id="dumaInstall" class="hidden" style="color:#fff;font-size:16px;line-height:1.7;max-width:340px;text-align:left">
+      <b>Instalacija aplikacije:</b><br>
+      1. Pritisni <b>tri tačkice</b> (⋮) gore desno<br>
+      2. Izaberi <b>„Instaliraj aplikaciju"</b> ili <b>„Dodaj na početni ekran"</b><br>
+      3. Potvrdi — ikonica <b>Duma</b> se pojavljuje na početnom ekranu<br>
+      4. Zatvori Chrome i od sada koristi samo tu ikonicu
+      <div style="margin-top:18px"><button id="dumaBtnUdji" onclick="preusmeri_('')" style="background:#2f9e5c;color:#fff;border:none;border-radius:12px;padding:14px 20px;font-size:15px;font-weight:700;width:100%">Uđi u aplikaciju bez instalacije</button></div>
+    </div>
     <div id="dumaStatus"></div>
   </div>
 
@@ -141,7 +149,19 @@
     // to samo-ispravlja: 'preskoceno' se poštuje SAMO ako browser stvarno kaže da je blokirano
     // (Notification.permission === 'denied'); u svakom drugom slučaju se stara odluka briše i
     // korisniku se ponovo nudi dugme - bez ikakve ručne intervencije na telefonu.
-    var vecOdluceno = procitajOdluku_();
+    // INSTALACIONI REŽIM: otvaranje sa ?instaliraj u adresi NE preusmerava nikuda, nego prikaže
+    // uputstvo za instalaciju (tri tačkice -> Instaliraj aplikaciju). Ovo postoji jer inače
+    // stranica odmah prebaci u aplikaciju (script.google.com), a odatle Chrome nudi samo prečicu,
+    // ne pravu aplikaciju - instalacija MORA da se uradi dok si na ovoj (github.io) stranici.
+    var INSTALL_MOD = window.location.search.indexOf('instaliraj') !== -1;
+    if (INSTALL_MOD) {
+      prikaziDugme_();
+      var elBtn_ = document.getElementById('dumaBtn'); if (elBtn_) elBtn_.style.display = 'none';
+      var elSkip_ = document.getElementById('dumaSkip'); if (elSkip_) elSkip_.style.display = 'none';
+      var elInst_ = document.getElementById('dumaInstall'); if (elInst_) elInst_.classList.remove('hidden');
+    }
+
+    var vecOdluceno = INSTALL_MOD ? 'instalacija' : procitajOdluku_();
     if (vecOdluceno === 'preskoceno') {
       var stvarnaDozvolaOS_ = (typeof Notification !== 'undefined' && Notification.permission) || 'default';
       if (stvarnaDozvolaOS_ === 'denied') {
