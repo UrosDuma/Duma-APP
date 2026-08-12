@@ -129,9 +129,21 @@
       });
     }
 
+    // KLJUČNO: ako je ovaj telefon RANIJE (pre ove popravke) zbog kvara upamtio 'preskoceno' iako
+    // korisnik nikad nije stvarno video/blokirao pravi prozor za dozvolu, to zauvek zaključava
+    // aplikaciju van push-a - baš to je bio uzrok "ništa mi ne stiže bez obzira šta radim". Ovde se
+    // to samo-ispravlja: 'preskoceno' se poštuje SAMO ako browser stvarno kaže da je blokirano
+    // (Notification.permission === 'denied'); u svakom drugom slučaju se stara odluka briše i
+    // korisniku se ponovo nudi dugme - bez ikakve ručne intervencije na telefonu.
     var vecOdluceno = procitajOdluku_();
     if (vecOdluceno === 'preskoceno') {
-      preusmeri_("");
+      var stvarnaDozvolaOS_ = (typeof Notification !== 'undefined' && Notification.permission) || 'default';
+      if (stvarnaDozvolaOS_ === 'denied') {
+        preusmeri_("");
+      } else {
+        upamtiOdluku_('');
+        vecOdluceno = '';
+      }
     }
 
     var sigurnosniTajmer = null;
@@ -181,8 +193,13 @@
       if (!oneSignalSpreman || typeof OneSignal === 'undefined') {
         brojPokusaja++;
         if (brojPokusaja > 10) {
-          logStatus_('OneSignal se nije uspeo učitati (' + (oneSignalGreska || 'nepoznat razlog') + '). Nastavljam bez push-a - probaj kasnije ponovo, ili proveri OneSignal podešavanja.');
-          upamtiOdluku_('preskoceno');
+          // VAŽNO: ovde se NAMERNO ne pamti trajna odluka "preskoceno" - ovo je TEHNIČKI kvar
+          // (OneSignal se nije učitao), ne stvarna odluka korisnika. Ako bismo ovde upamtili
+          // 'preskoceno', korisnik bi ostao trajno zaključan van push-a zauvek, čak i posle
+          // popravke servera - jer bi svaki sledeći put stranica odmah preskočila dugme (vidi
+          // proveru 'vecOdluceno' na vrhu fajla) bez ikad ponovo pokušala. Bez trajnog pamćenja,
+          // sledeći put kad korisnik otvori aplikaciju, dugme se ponovo nudi.
+          logStatus_('OneSignal se nije uspeo učitati (' + (oneSignalGreska || 'nepoznat razlog') + '). Nastavljam bez push-a ovog puta - probaj ponovo kasnije (dugme će se ponovo pojaviti).');
           preusmeri_("");
           return;
         }
@@ -196,12 +213,17 @@
         logStatus_('Tražim dozvolu za obaveštenja — pogledaj vrh ekrana...');
         await saVremenom_(OneSignal.Notifications.requestPermission(), 15000, 'Nije stigao odgovor na zahtev za dozvolu.');
         var playerId = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || "";
+        // Ovde JESTE u redu trajno upamtiti odluku: requestPermission() je stvarno završio (nije
+        // pukao/istekao), pa 'nema playerId' znači da je korisnik zaista pritisnuo Blokiraj u
+        // pravom browser prozoru - to je prava, trajna odluka koju browser i inače pamti.
         upamtiOdluku_(playerId ? 'dozvoljeno' : 'preskoceno');
         logStatus_(playerId ? 'Obaveštenja uključena!' : 'Dozvola nije data - nastavljam samo sa mejlom.');
         preusmeri_(playerId);
       } catch (e) {
-        upamtiOdluku_('preskoceno');
-        logStatus_('Greška: ' + (e && e.message || e) + ' - nastavljam samo sa mejlom.');
+        // Ovde NE pamtimo trajnu odluku - requestPermission() nije stvarno završio (isteklo vreme
+        // ili SDK greška), znači korisnik nije ni video pravi prozor za dozvolu. Ne sme se trajno
+        // zaključati van push-a zbog privremenog tehničkog kvara.
+        logStatus_('Greška: ' + (e && e.message || e) + ' - nastavljam samo sa mejlom ovog puta (probaj ponovo kasnije).');
         preusmeri_("");
       }
     }
