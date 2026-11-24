@@ -41,6 +41,18 @@
     #dumaStatus {
       margin-top: 22px; color: #fff; font-size: 12.5px; opacity: .8; max-width: 340px;
     }
+    /* Pozdravni ekran: vidi se dok se aplikacija otvara (ranije je ekran bio prazan). Nestaje kad se ponudi dugme. */
+    #dumaSplash {
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px; text-align: center; background: #1e3a5c;
+    }
+    #dumaSplash img { width: 88px; height: 88px; border-radius: 20px; box-shadow: 0 6px 20px rgba(0,0,0,.28); }
+    #dumaSplash .t { color: #fff; font-size: 21px; font-weight: 700; margin-top: 18px; letter-spacing: .2px; }
+    #dumaSplash .s { color: #cfe0ee; font-size: 14px; margin-top: 8px; }
+    #dumaSplash .bar { width: 132px; height: 3px; border-radius: 3px; background: rgba(255,255,255,.18); margin-top: 22px; overflow: hidden; }
+    #dumaSplash .bar i { display: block; width: 40%; height: 100%; border-radius: 3px; background: #fff; animation: dumaTok 1.1s ease-in-out infinite; }
+    @keyframes dumaTok { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
+    @media (prefers-reduced-motion: reduce) { #dumaSplash .bar i { animation: none; width: 100%; opacity: .5; } }
   </style>
 
   <!-- Ubrzava povezivanje na OneSignal server PRE nego sto se sam SDK skripta uopste pozove -
@@ -54,6 +66,7 @@
 </head>
 <body>
 
+  <div id="dumaSplash"><img src="./icon-192.png" alt="" width="88" height="88"><div class="t">Duma Enterprise</div><div class="s">Otvaram aplikaciju…</div><div class="bar"><i></i></div></div>
   <div id="dumaWrap" class="hidden">
     <div id="dumaTitle">Duma Enterprise</div>
     <button id="dumaBtn" onclick="dumaKlikDozvoli()">🔔 Uključi obaveštenja i uđi u aplikaciju</button>
@@ -114,6 +127,8 @@
     }
 
     function prikaziDugme_() {
+      var sp = document.getElementById('dumaSplash');
+      if (sp) sp.style.display = 'none';
       var el = document.getElementById('dumaWrap');
       if (el) el.classList.remove('hidden');
     }
