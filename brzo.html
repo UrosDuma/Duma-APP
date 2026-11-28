@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <title>Duma Enterprise</title>
+
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#1e3a5c">
+
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Duma">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://script.googleusercontent.com">
+  <!--NOVI_PRECONNECT-->
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #1e3a5c; font-family: Arial, sans-serif; }
+    #dumaWrap {
+      min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px; text-align: center;
+    }
+    #dumaWrap.hidden, .hidden { display: none; }
+    #dumaTitle { color: #fff; font-size: 20px; font-weight: 700; margin-bottom: 14px; }
+    #dumaBtn {
+      background: #2f9e5c; color: #fff; border: none; border-radius: 14px;
+      padding: 18px 26px; font-size: 17px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,.25); width: 100%; max-width: 340px;
+    }
+    #dumaBtn:active { background: #257a49; }
+    #dumaBtn:disabled { opacity: .6; }
+    #dumaSkip { margin-top: 18px; color: #cfe0ee; font-size: 13.5px; text-decoration: underline; cursor: pointer; }
+    #dumaStatus { margin-top: 22px; color: #fff; font-size: 12.5px; opacity: .8; max-width: 340px; }
+    #dumaSplash {
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px; text-align: center; background: #1e3a5c;
+    }
+    #dumaSplash img { width: 88px; height: 88px; border-radius: 20px; box-shadow: 0 6px 20px rgba(0,0,0,.28); }
+    #dumaSplash .t { color: #fff; font-size: 21px; font-weight: 700; margin-top: 18px; letter-spacing: .2px; }
+    #dumaSplash .s { color: #cfe0ee; font-size: 14px; margin-top: 8px; }
+    #dumaSplash .bar { width: 132px; height: 3px; border-radius: 3px; background: rgba(255,255,255,.18); margin-top: 22px; overflow: hidden; }
+    #dumaSplash .bar i { display: block; width: 40%; height: 100%; border-radius: 3px; background: #fff; animation: dumaTok 1.1s ease-in-out infinite; }
+    @keyframes dumaTok { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
+    @media (prefers-reduced-motion: reduce) { #dumaSplash .bar i { animation: none; width: 100%; opacity: .5; } }
+  </style>
+</head>
+<body>
+
+  <div id="dumaSplash"><img src="./icon-192.png" alt="" width="88" height="88"><div class="t">Duma Enterprise</div><div class="s" id="dumaSplashTekst">Otvaram aplikaciju…</div><div class="bar"><i></i></div></div>
+  <div id="dumaWrap" class="hidden">
+    <div id="dumaTitle">Duma Enterprise</div>
+    <button id="dumaBtn" onclick="dumaKlikDozvoli()">🔔 Uključi obaveštenja i uđi u aplikaciju</button>
+    <div id="dumaSkip" onclick="dumaPreskoci()">Nastavi bez obaveštenja (samo email)</div>
+    <div id="dumaInstall" class="hidden" style="color:#fff;font-size:16px;line-height:1.7;max-width:340px;text-align:left">
+      <b>Instalacija aplikacije:</b><br>
+      1. Pritisni <b>tri tačkice</b> (⋮) gore desno<br>
+      2. Izaberi <b>„Instaliraj aplikaciju"</b> ili <b>„Dodaj na početni ekran"</b><br>
+      3. Potvrdi — ikonica <b>Duma</b> se pojavljuje na početnom ekranu<br>
+      4. Zatvori Chrome i od sada koristi samo tu ikonicu
+      <div style="margin-top:18px"><button id="dumaBtnUdji" onclick="dumaUdji()" style="background:#2f9e5c;color:#fff;border:none;border-radius:12px;padding:14px 20px;font-size:15px;font-weight:700;width:100%">Uđi u aplikaciju bez instalacije</button></div>
+    </div>
+    <div id="dumaStatus"></div>
+  </div>
+
+  <script>
+  /* Duma App: brza ljuska (27.11.2026).
+     Aplikacija se prikazuje u OVOJ stranici (bez Google okvira i trake). Poslednja verzija aplikacije čuva se na uređaju,
+     pa se otvara odmah; nova verzija se u pozadini preuzme i važi od sledećeg otvaranja.
+     Ako bilo šta u ovom putu ne uspe, otvara se stara adresa aplikacije (kao do sada). Stara adresa na zahtev: dodati ?staro=1. */
+  (function () {
+    'use strict';
+    var API = "https://script.google.com/macros/s/AKfycbzSCBRetWjV4y5DojPcXPDUk6oFlbt-DeG1coBoYdelYl--UsGTmyJnuX3zVlebjfl1_A/exec";
+    var NOVI = "";                    // adresa novog servera (brza čitanja); prazno = sve ide starom serveru, kao do sada
+    var ONESIGNAL_APP_ID = "386c4ae2-d7f3-4084-8f5c-23a049cff8bf";
+    var ODLUKA_KLJUC = 'dumaPushOdluka', PUSH_KLJUC = 'dumaPushId';
+    var PRVO_CEKANJE_MS = 45000;      // prvo preuzimanje aplikacije (posle toga se otvara sa uređaja)
+
+    function ls(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+    function el(id) { return document.getElementById(id); }
+    function logStatus_(txt) { try { console.log('[DUMA]', txt); } catch (e) {} var s = el('dumaStatus'); if (s) s.textContent = txt; }
+
+    var Q = { chat: '', instaliraj: false, staro: false };
+    try {
+      var p = new URLSearchParams(window.location.search);
+      Q.chat = p.get('otvoriChat') || '';
+      Q.staro = p.get('staro') === '1';
+      Q.instaliraj = window.location.search.indexOf('instaliraj') !== -1;
+    } catch (e) {}
+
+    /* ---------- rezervni put: stara adresa (stranica u Google okviru) ---------- */
+    var otislo = false;
+    function staraAdresa_(razlog) {
+      if (otislo) return; otislo = true;
+      try { console.log('[DUMA] stara adresa:', razlog || ''); } catch (e) {}
+      var qs = [], id = ls(PUSH_KLJUC);
+      if (id) qs.push('dumaPush=' + encodeURIComponent(id));
+      if (Q.chat) qs.push('otvoriChat=' + encodeURIComponent(Q.chat));
+      window.location.replace(API + (qs.length ? ('?' + qs.join('&')) : ''));
+    }
+
+    /* ---------- čuvanje na uređaju (IndexedDB) ---------- */
+    function idb_() {
+      return new Promise(function (res, rej) {
+        var r; try { r = indexedDB.open('duma-ljuska', 1); } catch (e) { rej(e); return; }
+        r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
+        r.onsuccess = function () { res(r.result); };
+        r.onerror = function () { rej(r.error || new Error('idb')); };
+      });
+    }
+    function idbGet_(k) {
+      return idb_().then(function (db) { return new Promise(function (res, rej) {
+        var t = db.transaction('kv', 'readonly'), q = t.objectStore('kv').get(k);
+        q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { rej(q.error); };
+      }); });
+    }
+    function idbSet_(k, v) {
+      return idb_().then(function (db) { return new Promise(function (res, rej) {
+        var t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k);
+        t.oncomplete = function () { res(true); }; t.onerror = function () { rej(t.error); }; t.onabort = function () { rej(t.error); };
+      }); });
+    }
+
+    /* ---------- server ---------- */
+    function api_(f, a) {
+      return fetch(API, { method: 'POST', body: JSON.stringify({ f: f, a: a || [] }), redirect: 'follow' })
+        .then(function (o) { return o.text(); })
+        .then(function (tx) { var o = JSON.parse(tx); if (!o || !o.ok) throw new Error((o && o.g) || 'Greška na serveru.'); return o.r; });
+    }
+    function saServera_() {
+      return api_('__stranica', []).then(function (r) {
+        if (!r || !r.html || r.html.length < 1000) throw new Error('Prazna stranica.');
+        var z = { oznaka: r.oznaka, html: r.html, t: Date.now() };
+        return idbSet_('app', z).then(function () { return z; }, function () { return z; });
+      });
+    }
+    var preuzimanje = null;                     // jedno preuzimanje, ma ko ga prvi zatražio
+    function aplikacija_() {
+      if (!preuzimanje) preuzimanje = idbGet_('app').then(function (z) { return (z && z.html) ? z : saServera_(); }, function () { return saServera_(); });
+      return preuzimanje;
+    }
+
+    /* ---------- ono što se ubacuje u stranicu aplikacije: veza sa serverom umesto Google okvira ---------- */
+    function dumaVeza(API, CFG) {
+      var W = window;
+      function isporuci(fn, v, obj, imaObj) { W.setTimeout(function () { if (imaObj) fn(v, obj); else fn(v); }, 0); }
+      /* Novi server (ako je upisan): proverene funkcije čitanja odgovaraju odande, odmah. Sve ostalo, svaki upis i svaki
+         slučaj kad novi server ne odgovori ili nije siguran, ide starom serveru kao do sada. Podatke menja samo stari server. */
+      var NOVI = CFG.novi || '', BR = { brzo: 0, stari: 0, senka: 0, nazad: 0, pauza: 0 };
+      var pauzaDo = 0;   // stari server je javio da novi nije dobio poslednji upis: neko vreme sve ide starom
+      var SP = { brzo: {}, senka: {}, t: 0 };
+      function skup(n) { var o = {}; for (var i = 0; i < (n || []).length; i++) o[n[i]] = 1; return o; }
+      function primiSpisak(s, cuvaj) {
+        SP = (s && s.ok && s.zdravo) ? { brzo: skup(s.brzo), senka: skup(s.senka), t: Date.now() } : { brzo: {}, senka: {}, t: Date.now() };
+        if (cuvaj) { try { W.localStorage.setItem('dumaSpisak', JSON.stringify(s || {})); } catch (e) {} }
+      }
+      function ucitajSpisak() {
+        if (!NOVI) return;
+        W.fetch(NOVI + '/api/spisak').then(function (o) { return o.json(); }).then(function (s) { primiSpisak(s, true); }, function () { primiSpisak(null, false); });
+      }
+      if (NOVI) {
+        try { var sacuvan = JSON.parse(W.localStorage.getItem('dumaSpisak') || 'null'); if (sacuvan) primiSpisak(sacuvan, false); } catch (e) {}
+        ucitajSpisak();
+        W.setInterval(function () { if (!W.document.hidden) ucitajSpisak(); }, 120000);
+        W.document.addEventListener('visibilitychange', function () { if (!W.document.hidden && Date.now() - SP.t > 60000) ucitajSpisak(); });
+      }
+      function stariPut(ime, args, telo, ok, gr, obj, imaObj, naProveru) {
+        BR.stari++;
+        W.fetch(API, { method: 'POST', body: telo, redirect: 'follow' })
+          .then(function (o) { return o.text(); })
+          .then(function (tx) {
+            var o; try { o = JSON.parse(tx); } catch (e) { throw new Error('Server nije vratio ispravan odgovor. Proveri vezu i pokušaj ponovo.'); }
+            if (o && o.p === 2) { pauzaDo = Date.now() + 8 * 60 * 1000; BR.pauza++; }
+            if (naProveru && o && o.ok && !o.p && tx.length < 300000) {   // odgovor starog servera ide novom na poređenje (uređaj na to ne čeka)
+              try { BR.senka++; W.fetch(NOVI + '/api/senka', { method: 'POST', body: JSON.stringify({ f: ime, a: args, t: tx }) }).then(function () {}, function () {}); } catch (e) {}
+            }
+            return o;
+          })
+          .then(function (o) {
+            if (o && o.ok) { if (ok) isporuci(ok, o.r === undefined ? null : o.r, obj, imaObj); }
+            else { var er = new Error((o && o.g) || 'Greška na serveru.'); if (gr) isporuci(gr, er, obj, imaObj); else if (W.console) W.console.error(er); }
+          }, function (e) {
+            var er = (e && e.message && e.message.indexOf('Server nije vratio') === 0) ? e : new Error('Nema veze sa serverom. Proveri internet i pokušaj ponovo.');
+            if (gr) isporuci(gr, er, obj, imaObj); else if (W.console) W.console.error(er);
+          });
+      }
+      function poziv(ime, args, ok, gr, obj, imaObj) {
+        var telo;
+        try { telo = JSON.stringify({ f: ime, a: args }); }
+        catch (e) { if (gr) isporuci(gr, e, obj, imaObj); return; }
+        if (NOVI && SP.brzo[ime] === 1 && telo.length < 100000 && Date.now() > pauzaDo) {
+          var prekid = (typeof W.AbortController === 'function') ? new W.AbortController() : null, gotovo = false;
+          var sat = W.setTimeout(function () { if (prekid) { try { prekid.abort(); } catch (e) {} } }, 6000);
+          var nazad = function () { if (gotovo) return; gotovo = true; W.clearTimeout(sat); BR.nazad++; stariPut(ime, args, telo, ok, gr, obj, imaObj, false); };
+          W.fetch(NOVI + '/api/poziv', { method: 'POST', body: telo, signal: prekid ? prekid.signal : undefined })
+            .then(function (o) { return o.text(); })
+            .then(function (tx) {
+              var o = null; try { o = JSON.parse(tx); } catch (e) { o = null; }
+              if (o && o.ok === true && !gotovo) { gotovo = true; W.clearTimeout(sat); BR.brzo++; if (ok) isporuci(ok, o.r === undefined ? null : o.r, obj, imaObj); }
+              else nazad();
+            }, nazad);
+          return;
+        }
+        stariPut(ime, args, telo, ok, gr, obj, imaObj, !!(NOVI && SP.senka[ime] === 1));
+      }
+      function graditelj(ok, gr, obj, imaObj) {
+        return new Proxy({}, {
+          get: function (_, ime) {
+            if (ime === 'withSuccessHandler') return function (f) { return graditelj(f, gr, obj, imaObj); };
+            if (ime === 'withFailureHandler') return function (f) { return graditelj(ok, f, obj, imaObj); };
+            if (ime === 'withUserObject') return function (o) { return graditelj(ok, gr, o, true); };
+            if (typeof ime !== 'string' || ime === 'then') return undefined;
+            return function () { poziv(ime, Array.prototype.slice.call(arguments), ok, gr, obj, imaObj); };
+          }
+        });
+      }
+      var rukovaoci = [];
+      W.addEventListener('popstate', function (ev) {
+        var st = (ev && ev.state && ev.state.duma !== undefined) ? ev.state.duma : null;
+        for (var i = 0; i < rukovaoci.length; i++) { try { rukovaoci[i]({ state: st, location: { hash: String(W.location.hash || '').replace(/^#/, ''), parameter: {}, parameters: {} } }); } catch (e) {} }
+      });
+      function adresa(hash) { return W.location.pathname + W.location.search + (hash ? ('#' + hash) : ''); }
+      W.google = W.google || {};
+      W.google.script = {
+        run: graditelj(null, null, null, false),
+        history: {
+          push: function (st, par, hash) { try { W.history.pushState({ duma: st === undefined ? null : st }, '', adresa(hash)); } catch (e) {} },
+          replace: function (st, par, hash) { try { W.history.replaceState({ duma: st === undefined ? null : st }, '', adresa(hash)); } catch (e) {} },
+          setChangeHandler: function (f) { if (typeof f === 'function') rukovaoci.push(f); }
+        },
+        url: { getLocation: function (f) { try { f({ hash: String(W.location.hash || '').replace(/^#/, ''), parameter: {}, parameters: {} }); } catch (e) {} } },
+        host: { close: function () {}, setHeight: function () {}, setWidth: function () {}, origin: W.location.origin, editor: { focus: function () {} } }
+      };
+      W.__DUMA_LJUSKA = { v: 2, oznaka: CFG.oznaka, api: API, novi: NOVI, brojac: BR, spisak: function () { return { brzo: Object.keys(SP.brzo).length, senka: Object.keys(SP.senka).length }; } };
+
+      /* posle otvaranja, u pozadini: (1) ima li novije verzije aplikacije, (2) osveži oznaku uređaja za obaveštenja */
+      function ls(k) { try { return W.localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+      function lsSet(k, v) { try { W.localStorage.setItem(k, v); } catch (e) {} }
+      function api(f) {
+        return W.fetch(API, { method: 'POST', body: JSON.stringify({ f: f, a: [] }), redirect: 'follow' })
+          .then(function (o) { return o.text(); }).then(function (tx) { var o = JSON.parse(tx); if (!o || !o.ok) throw new Error('server'); return o.r; });
+      }
+      function sacuvaj(z) {
+        return new Promise(function (res) {
+          try {
+            var r = W.indexedDB.open('duma-ljuska', 1);
+            r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
+            r.onsuccess = function () { try { var t = r.result.transaction('kv', 'readwrite'); t.objectStore('kv').put(z, 'app'); t.oncomplete = function () { res(true); }; t.onerror = t.onabort = function () { res(false); }; } catch (e) { res(false); } };
+            r.onerror = function () { res(false); };
+          } catch (e) { res(false); }
+        });
+      }
+      function proveriVerziju() {
+        api('__oznaka').then(function (oz) {
+          if (!oz || oz === CFG.oznaka) return;
+          return api('__stranica').then(function (r) {
+            if (!r || !r.html || r.html.length < 1000) return;
+            return sacuvaj({ oznaka: r.oznaka, html: r.html, t: Date.now() }).then(function (ok) { if (ok) W.__DUMA_LJUSKA.novaVerzija = r.oznaka; });
+          });
+        }).catch(function () {});
+      }
+      function osveziPush() {
+        if (ls(CFG.odlukaKljuc) !== 'dozvoljeno' || typeof W.Notification === 'undefined' || W.Notification.permission !== 'granted') return;
+        W.OneSignalDeferred = W.OneSignalDeferred || [];
+        W.OneSignalDeferred.push(function (OneSignal) {
+          OneSignal.init({ appId: CFG.oneSignal, serviceWorkerPath: 'Duma-APP/sw-v2.js', serviceWorkerParam: { scope: '/Duma-APP/' } }).then(function () {
+            var n = 0;
+            (function cekaj() {
+              var id = '';
+              try { id = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || ''; } catch (e) {}
+              if (id) {
+                if (id !== ls(CFG.pushKljuc)) {
+                  lsSet(CFG.pushKljuc, id);
+                  try { W.DUMA_PUSH_PARAM = id; if (W.currentUser && typeof W.povezniUredjajZaPushAkoIma_ === 'function') W.povezniUredjajZaPushAkoIma_(); } catch (e) {}
+                }
+                return;
+              }
+              if (++n < 30) W.setTimeout(cekaj, 400);
+            })();
+          }).catch(function () {});
+        });
+        var s = W.document.createElement('script'); s.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'; s.defer = true;
+        (W.document.head || W.document.documentElement).appendChild(s);
+      }
+      W.addEventListener('load', function () {
+        W.setTimeout(proveriVerziju, 4000);
+        W.setTimeout(osveziPush, 2500);
+      });
+    }
+
+    /* ---------- otvaranje aplikacije u ovoj stranici ---------- */
+    function pokreni_(z) {
+      var bezbedno = function (s) { return JSON.stringify(String(s || '')).replace(/</g, '\\u003c'); };
+      var html = String(z.html);
+      html = html.split('"DUMA_LJUSKA_PUSH"').join(bezbedno(ls(PUSH_KLJUC))).split('"DUMA_LJUSKA_CHAT"').join(bezbedno(Q.chat));
+      var cfg = { oznaka: z.oznaka || '', oneSignal: ONESIGNAL_APP_ID, odlukaKljuc: ODLUKA_KLJUC, pushKljuc: PUSH_KLJUC, novi: NOVI };
+      var glava =
+        '<title>Duma Enterprise</title>' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">' +
+        '<link rel="manifest" href="./manifest.json"><meta name="theme-color" content="#1e3a5c">' +
+        '<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">' +
+        '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">' +
+        '<meta name="apple-mobile-web-app-title" content="Duma"><meta name="mobile-web-app-capable" content="yes">' +
+        '<script>(' + dumaVeza.toString() + ')(' + JSON.stringify(API) + ',' + JSON.stringify(cfg).replace(/</g, '\\u003c') + ');<\/script>';
+      var m = html.match(/<head[^>]*>/i);
+      if (!m) throw new Error('Stranica aplikacije nema zaglavlje.');
+      var i = html.indexOf(m[0]) + m[0].length;
+      html = html.slice(0, i) + glava + html.slice(i);
+      document.open();
+      document.write(html);
+      document.close();
+    }
+    var pokrenuto = false;
+    function kreni_() {
+      if (pokrenuto) return; pokrenuto = true;
+      var w = el('dumaWrap'); if (w) w.classList.add('hidden');
+      var sp = el('dumaSplash'); if (sp) sp.style.display = '';
+      var strazar = setTimeout(function () { staraAdresa_('prvo preuzimanje traje predugo'); }, PRVO_CEKANJE_MS);
+      aplikacija_().then(function (z) {
+        clearTimeout(strazar);
+        if (otislo) return;
+        try { pokreni_(z); } catch (e) { staraAdresa_('otvaranje nije uspelo: ' + (e && e.message)); }
+      }, function (e) { clearTimeout(strazar); staraAdresa_('preuzimanje nije uspelo: ' + (e && e.message)); });
+    }
+
+    /* ---------- obaveštenja: prvi put se pita, kasnije se ne čeka ---------- */
+    function prikaziDugme_() {
+      var sp = el('dumaSplash'); if (sp) sp.style.display = 'none';
+      var w = el('dumaWrap'); if (w) w.classList.remove('hidden');
+    }
+    function saVremenom_(promise, ms, poruka) {
+      return new Promise(function (resolve, reject) {
+        var gotovo = false, t = setTimeout(function () { if (gotovo) return; gotovo = true; reject(new Error(poruka || 'isteklo vreme')); }, ms);
+        promise.then(function (v) { if (gotovo) return; gotovo = true; clearTimeout(t); resolve(v); }, function (e) { if (gotovo) return; gotovo = true; clearTimeout(t); reject(e); });
+      });
+    }
+    var oneSignalObecanje = null;
+    function oneSignal_() {
+      if (!oneSignalObecanje) oneSignalObecanje = new Promise(function (res, rej) {
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        window.OneSignalDeferred.push(function (OneSignal) {
+          saVremenom_(OneSignal.init({ appId: ONESIGNAL_APP_ID, serviceWorkerPath: 'Duma-APP/sw-v2.js', serviceWorkerParam: { scope: '/Duma-APP/' } }), 8000, 'Servis za obaveštenja se nije javio na vreme.')
+            .then(function () { res(OneSignal); }, rej);
+        });
+        var s = document.createElement('script'); s.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'; s.defer = true;
+        s.onerror = function () { rej(new Error('Servis za obaveštenja nije dostupan.')); };
+        document.head.appendChild(s);
+      });
+      return oneSignalObecanje;
+    }
+    function cekajId_(OneSignal, pokusaja) {
+      return new Promise(function (res) {
+        var n = 0;
+        (function korak() {
+          var id = '';
+          try { id = (OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.id) || ''; } catch (e) {}
+          if (id) { res(id); return; }
+          if (typeof Notification !== 'undefined' && Notification.permission === 'denied') { res(''); return; }
+          if (++n >= pokusaja) { res(''); return; }
+          setTimeout(korak, 400);
+        })();
+      });
+    }
+    window.dumaPreskoci = function () { lsSet(ODLUKA_KLJUC, 'preskoceno'); kreni_(); };
+    window.dumaUdji = function () { kreni_(); };
+    window.dumaKlikDozvoli = function () {
+      var btn = el('dumaBtn');
+      btn.disabled = true; btn.textContent = 'Sačekaj...';
+      logStatus_('Tražim dozvolu za obaveštenja — pogledaj vrh ekrana...');
+      oneSignal_().then(function (OneSignal) {
+        return saVremenom_(OneSignal.Notifications.requestPermission(), 15000, 'Nije stigao odgovor na zahtev za dozvolu.').then(function () { return cekajId_(OneSignal, 30); });
+      }).then(function (id) {
+        var dozvola = (typeof Notification !== 'undefined' && Notification.permission) || 'default';
+        if (id) { lsSet(PUSH_KLJUC, id); lsSet(ODLUKA_KLJUC, 'dozvoljeno'); logStatus_('Obaveštenja uključena!'); }
+        else if (dozvola === 'denied') { lsSet(ODLUKA_KLJUC, 'preskoceno'); logStatus_('Dozvola nije data - nastavljam samo sa mejlom.'); }
+        else if (dozvola === 'granted') { lsSet(ODLUKA_KLJUC, 'dozvoljeno'); logStatus_('Dozvola je data; uređaj se povezuje u pozadini.'); }
+        kreni_();
+      }, function (e) {
+        logStatus_('Greška: ' + ((e && e.message) || e) + ' - nastavljam samo sa mejlom ovog puta (probaj ponovo kasnije).');
+        kreni_();
+      });
+    };
+
+    /* ---------- tok ---------- */
+    if (Q.staro) { staraAdresa_('traženo'); return; }
+    if (!window.fetch || !window.indexedDB || !window.Proxy || !window.Promise) { staraAdresa_('stariji pregledač'); return; }
+    if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('./sw.js').catch(function () {}); } catch (e) {} }
+
+    if (Q.instaliraj) {
+      prikaziDugme_();
+      el('dumaBtn').style.display = 'none'; el('dumaSkip').style.display = 'none'; el('dumaInstall').classList.remove('hidden');
+      aplikacija_().catch(function () {});       // da bude spremno kad pritisne „Uđi“
+      return;
+    }
+    var odluka = ls(ODLUKA_KLJUC);
+    var dozvolaOS = (typeof Notification !== 'undefined' && Notification.permission) || '';
+    if (!dozvolaOS) { kreni_(); return; }                                   // uređaj ne podržava obaveštenja u ovom prikazu
+    if (dozvolaOS === 'granted') { if (odluka !== 'dozvoljeno') lsSet(ODLUKA_KLJUC, 'dozvoljeno'); kreni_(); return; }
+    if (dozvolaOS === 'denied') { if (odluka !== 'preskoceno') lsSet(ODLUKA_KLJUC, 'preskoceno'); kreni_(); return; }
+    /* dozvola još nije ni data ni odbijena: ponudi dugme (kao i do sada), a aplikaciju u međuvremenu pripremi */
+    if (odluka) lsSet(ODLUKA_KLJUC, '');
+    prikaziDugme_();
+    aplikacija_().catch(function () {});
+  })();
+  </script>
+
+</body>
+</html>
